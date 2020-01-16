@@ -15,11 +15,11 @@ describe('Bookmarks Endpoints', () => {
   });
 
   after('disconnect from db', () => {
-    db.destroy();
+    return db.destroy();
   });
 
   before('cleanup', () => {
-    db('bookmarks').truncate();
+    return db('bookmarks').truncate();
     // .then(() => {
     //   console.log('hey!!!!!!!!!');
     //   db('bookmarks')
@@ -31,16 +31,15 @@ describe('Bookmarks Endpoints', () => {
   });
 
   afterEach('cleanup', () => {
-    db('bookmarks')
-      .truncate()
-      .then(() => {
-        console.log('hey!!!!!!!!!');
-        return db('bookmarks')
-          .select('*')
-          .then(bookmarks => {
-            console.log(bookmarks);
-          });
-      });
+    return db('bookmarks').truncate();
+    //     .then(() => {
+    //       console.log('hey!!!!!!!!!');
+    //       return db('bookmarks')
+    //         .select('*')
+    //         .then(bookmarks => {
+    //           console.log(bookmarks);
+    //         });
+    //     });
   });
 
   describe(`Unauthorized requests`, () => {
@@ -521,5 +520,119 @@ describe('Bookmarks Endpoints', () => {
           );
         });
     });
+  });
+
+  describe.only('PATCH /bookmarks/:id', () => {
+    context(
+      'provided there are no bookmarks in the database',
+      () => {
+        it('returns a 404 error', () => {
+          return supertest(app)
+            .patch('/bookmarks/1337')
+            .set(
+              'Authorization',
+              `Bearer ${process.env.API_TOKEN}`
+            )
+            .send({
+              title: `this title doesn't matter`
+            })
+            .expect(404)
+            .expect(res => {
+              return expect(
+                res.body.error
+              ).to.include({
+                message:
+                  'Bookmark Not Found'
+              });
+            });
+        });
+      }
+    );
+
+    context(
+      'there are bookmarks in the database',
+      () => {
+        const testBookmarks = fixtures.makeBookmarksArray();
+
+        beforeEach(
+          'populate tables',
+          () => {
+            return db
+              .into('bookmarks')
+              .insert(testBookmarks);
+          }
+        );
+        // It requires the bookmark's ID to be supplied as a URL param
+        it('requires the bookmarks ID to be supplied as a URL param', () => {
+          return supertest(app)
+            .patch('/bookmarks')
+            .set(
+              'Authorization',
+              `Bearer ${process.env.API_TOKEN}`
+            )
+            .send({
+              title: 'some stuff'
+            })
+            .expect(400)
+            .expect(res => {
+              return expect(
+                res.body.error.message
+              ).to.eql(
+                'bookmark id must be specified as a parameter'
+              );
+            });
+        });
+
+        // It responds with a 204 and no content when successful
+        it('responds with a 204 and no content when successful', () => {
+          const goodPatch = {
+            url: 'https://zombo.com'
+          };
+
+          const location = `/bookmarks/${testBookmarks[1].id}`;
+          const expectation = {
+            ...testBookmarks[1],
+            ...goodPatch
+          };
+          return supertest(app)
+            .patch(location)
+            .set(
+              'Authorization',
+              `Bearer ${process.env.API_TOKEN}`
+            )
+            .send(goodPatch)
+            .expect(204)
+            .expect(() => {
+              return supertest(app)
+                .get(location)
+                .expect(
+                  200,
+                  expectation
+                ); // It updates the bookmark in your database table
+            });
+        });
+
+        // It responds with a 400 when no values are supplied for any fields (title, url, description, rating)
+        it('responds with a 400 when no values are supplied for any fields (title, url, description, rating)', () => {
+          return supertest(app)
+            .patch(
+              `/bookmarks/${testBookmarks[0].id}`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${process.env.API_TOKEN}`
+            )
+            .send({})
+            .expect(400)
+            .expect(res => {
+              return expect(
+                res.body.error.message
+              ).to.eql(
+                `Error: request body must contain either 'url', 'desc', 'rating' or 'title'.`
+              );
+            });
+        });
+      }
+    );
   });
 });

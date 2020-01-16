@@ -72,7 +72,7 @@ bookmarksRouter
         return res
           .status(400)
           .send(
-            '\'rating\' must be a number between 0 and 5'
+            "'rating' must be a number between 0 and 5"
           );
       }
 
@@ -83,7 +83,7 @@ bookmarksRouter
         return res
           .status(400)
           .send(
-            '\'url\' must be a valid URL'
+            "'url' must be a valid URL"
           );
       }
 
@@ -115,7 +115,17 @@ bookmarksRouter
         })
         .catch(next);
     }
-  );
+  )
+  .patch((req, res, next) => {
+    return res
+      .status(400)
+      .json({
+        error: {
+          message:
+            'bookmark id must be specified as a parameter'
+        }
+      });
+  });
 
 bookmarksRouter
   .route('/bookmarks/:bookmark_id')
@@ -132,7 +142,8 @@ bookmarksRouter
           );
           return res.status(404).json({
             error: {
-              message: 'Bookmark Not Found'
+              message:
+                'Bookmark Not Found'
             }
           });
         }
@@ -146,8 +157,53 @@ bookmarksRouter
       serializeBookmark(res.bookmark)
     );
   })
+  .patch(
+    bodyParser,
+    (req, res, next) => {
+      const {
+        bookmark_id
+      } = req.params;
+      console.log(bookmark_id);
+      const {
+        url,
+        desc,
+        rating,
+        title
+      } = req.body;
+
+      let reqdb = req.app.get('db');
+
+      let updatedBookmark = {
+        url,
+        rating,
+        title,
+        desc
+      };
+
+      const numberOfFields = Object.values(
+        updatedBookmark
+      ).filter(Boolean).length;
+
+      if (numberOfFields === 0) {
+        return res.status(400).json({
+          error: {
+            message: `Error: request body must contain either 'url', 'desc', 'rating' or 'title'.`
+          }
+        });
+      }
+
+      BookarksService.updateBookmark(
+        reqdb,
+        bookmark_id,
+        updatedBookmark
+      )
+        .then(bookmark => {
+          return res.status(204).end();
+        })
+        .catch(next);
+    }
+  )
   .delete((req, res, next) => {
-    // TODO: update to use db
     const { bookmark_id } = req.params;
     BookarksService.deleteBookmark(
       req.app.get('db'),
